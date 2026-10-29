@@ -13,10 +13,11 @@ It replaces the library-progress sync of
 [Replacing pocketbooktools](#replacing-pocketbooktools).
 
 Written for the PocketBook Era Lite (PB710, firmware U710.6.11.2124,
-KOReader v2026.07.1). **Not yet verified on the device**: the CFI mapping was
-checked on the PC against two real EPUBs (every pointer round-trips) and the
-database rules were verified on the device by the Kobalt port, but the first
-on-device run of this plugin is still to be done. See [Testing](#testing).
+KOReader v2026.07.2) and verified there on 2026-10-29 with pocketbooktools
+removed: KOReader's place comes up in PBReader and a newer PBReader position
+is offered in KOReader. The CFI mapping was also checked on the PC against two
+real EPUBs (every pointer round-trips). Other devices and firmware
+generations are untested; see [Testing](#testing).
 
 ## What it writes
 
