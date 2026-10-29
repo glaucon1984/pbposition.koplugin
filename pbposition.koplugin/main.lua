@@ -295,13 +295,18 @@ function PBPosition:sync(source, force)
         data.position and "" or _(", position not mapped"))
 end
 
--- pocketbooktools (if still enabled) handles the same events after us and its
--- REPLACE INTO wipes `position`: put the pair back once this dispatch is over.
+-- This plugin replaces pocketbooktools' library-progress sync and does not need
+-- it. Safety net for a user who still has both: pocketbooktools handles the same
+-- events after us (plugins run in path order) and its REPLACE INTO wipes
+-- `position`, so put the pair back once this dispatch is over. Costs one table
+-- lookup when pocketbooktools is not loaded.
 function PBPosition:repairAfterOthers()
     local last, book = self.last, self.book
     if not last or not last.position or not book then return end
-    local PluginLoader = require("pluginloader")
-    if not PluginLoader:getPluginInstance("pocketbooktools") then return end
+    local ok, other = pcall(function()
+        return require("pluginloader"):getPluginInstance("pocketbooktools")
+    end)
+    if not ok or not other then return end
     UIManager:nextTick(function()
         if db:writePosition(book.id, book.profile, last.position, last.position_ts) then
             logger.dbg("PBPosition: position re-written after pocketbooktools")

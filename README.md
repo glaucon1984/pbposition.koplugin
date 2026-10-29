@@ -7,6 +7,11 @@ progress the home screen shows. Open the same book in PBReader and it
 continues where KOReader left off; open it in KOReader after reading a bit in
 PBReader and the plugin offers the newer position.
 
+It replaces the library-progress sync of
+[pocketbooktools.koplugin](https://github.com/reuerendo/pocketbooktools.koplugin)
+(same row, same fields, plus the position) and does not depend on it; see
+[Replacing pocketbooktools](#replacing-pocketbooktools).
+
 Written for the PocketBook Era Lite (PB710, firmware U710.6.11.2124,
 KOReader v2026.07.1). **Not yet verified on the device**: the CFI mapping was
 checked on the PC against two real EPUBs (every pointer round-trips) and the
@@ -16,7 +21,8 @@ on-device run of this plugin is still to be done. See [Testing](#testing).
 ## What it writes
 
 The library database `/mnt/ext1/system/explorer-3/explorer-3.db` has one row
-per book and profile in `books_settings`. The plugin updates:
+per book and profile in `books_settings`. The plugin owns that row for the book
+being read and writes all of these in one statement:
 
 | Column | Value |
 |---|---|
@@ -57,28 +63,31 @@ in the menu.
    `applications/koreader/plugins/` on the device (`L:\applications\koreader\plugins\pbposition.koplugin\` over USB).
 2. Restart KOReader. The menu is under *Tools → PBReader position* (wrench
    tab), with the two toggles, *Write now* and *Status*.
-3. **If you have `pocketbooktools.koplugin`**, see the next section.
+3. **Remove or disable `pocketbooktools.koplugin`** if you have it; see the
+   next section.
 
-### pocketbooktools
+### Replacing pocketbooktools
 
-[pocketbooktools](https://github.com/reuerendo/pocketbooktools.koplugin)
-writes the same row (`cpage`, `npage`, `completed`, `opentime`) with
-`REPLACE INTO`, which deletes the row first and so wipes `position` and
-`favorite` every time it runs; it also only maps page 1 to `cpage` 0, every
-other page is written 1-based. This plugin writes those fields itself, so:
+This plugin takes over pocketbooktools' library-progress feature: it writes
+the same `books_settings` row with the same progress fields (`cpage`,
+`npage`, `completed`, `opentime`) and adds `position` / `position_ts`, from
+the same KOReader events, with no dependency on pocketbooktools being
+installed. Two things it does differently on purpose: it uses an UPSERT where
+pocketbooktools uses `REPLACE INTO` (which deletes the row first and so wipes
+`position` and `favorite` on every write), and it writes `cpage` 0-based for
+every page (pocketbooktools only maps page 1 to 0; every other page is written
+1-based, one page ahead).
 
-- **Recommended:** disable pocketbooktools' progress sync by disabling the
-  plugin (*Tools → More tools → Plugin management*). You lose its other
-  features (PocketBook-style dialogs, book summary, collection cleanup, the
-  boot-logo page snapshot) until a version without the REPLACE exists.
-- **Keeping both enabled works too, best effort:** plugins receive events in
-  path order, so pocketbooktools' REPLACE runs after this plugin's write. The
-  plugin therefore re-writes the position pair from the next UI tick after
-  the close and suspend events when pocketbooktools is loaded. The row ends
-  up right, with pocketbooktools' off-by-one `cpage` in between for a tick.
-- The clean fix is a one-line change upstream, switching pocketbooktools to
-  `INSERT … ON CONFLICT(bookid, profileid) DO UPDATE SET …`; this plugin's
-  `librarydb.lua` shows the statement.
+So **remove pocketbooktools, or disable it** (*Tools → More tools → Plugin
+management*), and let this plugin own the row. Its other features
+(PocketBook-style dialogs, book summary, collection cleanup, the boot-logo
+page snapshot) go with it; this plugin does not reimplement them.
+
+If both are left enabled, the row still ends up right: plugins receive
+events in path order, pocketbooktools' REPLACE runs after this plugin's
+write, and this plugin re-writes the position pair from the next UI tick
+after the close and suspend events when it sees pocketbooktools loaded. That
+is a safety net, not the intended setup.
 
 ## How the position is built
 
@@ -141,8 +150,9 @@ The on-device plan, from the hand-off that specified this plugin:
 5. If one is at hand, repeat with a book whose chapters have no `<head>` or
    whose OPF has `<guide>` before `<spine>`; the two computed steps are what
    differs from PBReader's own values then.
-6. With pocketbooktools enabled as well, repeat 2 and check `position` is
-   still there after a close.
+6. Only if pocketbooktools is still installed: with it enabled as well,
+   repeat 2 and check `position` is still there after a close. The intended
+   setup is without it.
 
 The first write also creates `explorer-3.db.before-pbposition`; deleting that
 file makes the plugin back up again.
